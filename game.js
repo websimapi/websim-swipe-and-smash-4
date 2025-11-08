@@ -17,8 +17,7 @@ const config = {
     pointsPerCandy: 10,
     timerDuration: 15,
     initialSmashValue: 0,
-    orientationChangeInterval: 15000, // 15 seconds
-    orientationMatchTime: 10, // 10 seconds to match
+    orientationChallengeDelay: 15000, // 15 seconds before first challenge
 };
 
 class Game {
@@ -41,11 +40,10 @@ class Game {
         this.inputHandler = new InputHandler(this.board.boardElement, this.onSwap.bind(this), this.onSmash.bind(this), this.orientationHandler);
 
         // Orientation challenge elements
-        this.orientationContainer = document.getElementById('orientation-container');
+        this.orientationChallengeContainer = document.getElementById('orientation-challenge-container');
         this.orientationIndicator = document.getElementById('orientation-indicator');
-        this.orientationTimerElement = document.getElementById('orientation-timer');
-        this.orientationTimeout = null;
-        this.orientationChallengeInterval = null;
+        this.currentTargetOrientation = null;
+        this.isOrientationChallengeActive = false;
         
         this.updateScore(0);
         this.updateSmashUI();
@@ -57,54 +55,54 @@ class Game {
     scheduleFirstOrientationChallenge() {
         setTimeout(() => {
             this.startOrientationChallenge();
-            this.orientationChallengeInterval = setInterval(
-                () => this.startOrientationChallenge(),
-                config.orientationChangeInterval
-            );
-        }, 15000); // Start first challenge 15 seconds into the game
+        }, config.orientationChallengeDelay);
     }
 
     startOrientationChallenge() {
-        this.pauseTimer();
-        const possibleOrientations = Object.values(ORIENTATIONS).filter(o => o !== this.board.gravityDirection);
-        const nextOrientation = possibleOrientations[Math.floor(Math.random() * possibleOrientations.length)];
+        if (this.isProcessing) {
+            // If board is busy, try again shortly
+            setTimeout(() => this.startOrientationChallenge(), 200);
+            return;
+        }
         
-        this.orientationHandler.setTargetOrientation(nextOrientation);
+        const possibleOrientations = Object.values(ORIENTATIONS).filter(o => o !== this.board.gravityDirection);
+        this.currentTargetOrientation = possibleOrientations[Math.floor(Math.random() * possibleOrientations.length)];
+        
+        this.orientationHandler.setTargetOrientation(this.currentTargetOrientation);
         
         this.orientationIndicator.className = '';
-        this.orientationIndicator.classList.add(nextOrientation);
-        this.orientationContainer.classList.remove('hidden');
+        this.orientationIndicator.classList.add(this.currentTargetOrientation);
+        this.orientationChallengeContainer.className = '';
+        this.orientationChallengeContainer.classList.remove('hidden');
 
-        let timeLeft = config.orientationMatchTime;
-        this.orientationTimerElement.textContent = timeLeft;
-
-        this.orientationTimeout = setInterval(() => {
-            timeLeft--;
-            this.orientationTimerElement.textContent = timeLeft;
-            if (timeLeft <= 0) {
-                this.failOrientationChallenge();
-            }
-        }, 1000);
+        this.isOrientationChallengeActive = true;
     }
 
     failOrientationChallenge() {
-        clearInterval(this.orientationTimeout);
-        this.orientationTimeout = null;
-        this.orientationContainer.classList.add('hidden');
-        this.resumeTimer();
+        // This is now implicitly handled by the timer reset if not matched
+        this.isOrientationChallengeActive = false;
+        this.orientationChallengeContainer.classList.add('hidden');
+        this.currentTargetOrientation = null;
     }
     
     onOrientationMatch(newOrientation) {
-        if (!this.orientationTimeout) return; // Challenge not active
+        if (!this.isOrientationChallengeActive || this.isProcessing || newOrientation !== this.currentTargetOrientation) return;
 
-        clearInterval(this.orientationTimeout);
-        this.orientationTimeout = null;
-        this.orientationContainer.classList.add('hidden');
-        
+        this.isOrientationChallengeActive = false; // Challenge met
+        this.currentTargetOrientation = null;
+
+        this.orientationChallengeContainer.classList.add('matched');
+
         this.isProcessing = true;
+        this.pauseTimer();
         this.board.setGravity(newOrientation).then(() => {
             this.isProcessing = false;
             this.resumeTimer();
+             // Hide the indicator after a short delay to show success
+            setTimeout(() => {
+                this.orientationChallengeContainer.classList.add('hidden');
+                this.orientationChallengeContainer.classList.remove('matched');
+            }, 500);
         });
     }
 
@@ -121,7 +119,17 @@ class Game {
                 }
                 this.smashProgress = 0; // Reset progress if timer runs out
                 this.updateSmashUI();
+
+                if(this.isOrientationChallengeActive) {
+                    this.failOrientationChallenge();
+                }
+
                 this.resetTimer();
+
+                // Start a new challenge when the timer resets, after the initial delay period has passed.
+                if (this.orientationHandler.isListening) {
+                    this.startOrientationChallenge();
+                }
             }
         }, 1000);
     }
