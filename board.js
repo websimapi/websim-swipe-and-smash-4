@@ -6,6 +6,7 @@ export default class Board {
         this.grid = [];
         this.boardElement = document.getElementById('game-board');
         this.candySize = this.boardElement.clientWidth / size;
+        this.gravityDirection = 'down'; // 'down', 'up', 'left', 'right'
         this.setupBoard();
     }
 
@@ -42,23 +43,37 @@ export default class Board {
         candy.style.width = `${this.candySize}px`;
         candy.style.height = `${this.candySize}px`;
         
+        const { top, left } = this.getInitialPosition(row, col);
+
         if (isInitializing) {
             candy.style.top = `${row * this.candySize}px`;
+            candy.style.left = `${col * this.candySize}px`;
         } else {
-            // Start above the board for falling animation
-            candy.style.top = `${-this.candySize}px`;
+            // Start off-screen for falling animation
+            candy.style.top = `${top}px`;
+            candy.style.left = `${left}px`;
         }
         
-        candy.style.left = `${col * this.candySize}px`;
         this.boardElement.appendChild(candy);
 
         // Animate falling into place
         if(!isInitializing) {
             setTimeout(() => {
                 candy.style.top = `${row * this.candySize}px`;
+                candy.style.left = `${col * this.candySize}px`;
             }, 10);
         }
         return candy;
+    }
+
+    getInitialPosition(row, col) {
+        switch (this.gravityDirection) {
+            case 'up': return { top: this.size * this.candySize, left: col * this.candySize };
+            case 'left': return { top: row * this.candySize, left: this.size * this.candySize };
+            case 'right': return { top: row * this.candySize, left: -this.candySize };
+            case 'down':
+            default: return { top: -this.candySize, left: col * this.candySize };
+        }
     }
 
     async swapCandies(candy1, candy2) {
@@ -321,17 +336,43 @@ export default class Board {
     }
 
     async dropCandies() {
-        for (let c = 0; c < this.size; c++) {
-            let emptyRow = this.size - 1;
-            for (let r = this.size - 1; r >= 0; r--) {
-                if (this.grid[r][c]) {
-                    if (r !== emptyRow) {
-                        this.grid[emptyRow][c] = this.grid[r][c];
-                        this.grid[r][c] = null;
-                        this.grid[emptyRow][c].dataset.row = emptyRow;
-                        this.grid[emptyRow][c].style.top = `${emptyRow * this.candySize}px`;
+        for (let i = 0; i < this.size; i++) {
+            let emptySlot = (this.gravityDirection === 'down' || this.gravityDirection === 'right') ? this.size - 1 : 0;
+            const increment = (this.gravityDirection === 'down' || this.gravityDirection === 'right') ? -1 : 1;
+
+            for (let j = this.size - 1; j >= 0; j--) {
+                const currentSlot = (this.gravityDirection === 'down' || this.gravityDirection === 'right') ? j : (this.size - 1 - j);
+                
+                let r, c, candy;
+                if (this.gravityDirection === 'down' || this.gravityDirection === 'up') {
+                    r = currentSlot;
+                    c = i;
+                } else { // left or right
+                    r = i;
+                    c = currentSlot;
+                }
+
+                candy = this.grid[r][c];
+
+                if (candy) {
+                    let newR, newC;
+                     if (this.gravityDirection === 'down' || this.gravityDirection === 'up') {
+                        newR = emptySlot;
+                        newC = c;
+                    } else { // left or right
+                        newR = r;
+                        newC = emptySlot;
                     }
-                    emptyRow--;
+
+                    if (r !== newR || c !== newC) {
+                        this.grid[newR][newC] = candy;
+                        this.grid[r][c] = null;
+                        candy.dataset.row = newR;
+                        candy.dataset.col = newC;
+                        candy.style.top = `${newR * this.candySize}px`;
+                        candy.style.left = `${newC * this.candySize}px`;
+                    }
+                    emptySlot += increment;
                 }
             }
         }
@@ -347,5 +388,12 @@ export default class Board {
             }
         }
         return new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    async setGravity(direction) {
+        this.gravityDirection = direction;
+        await this.dropCandies();
+        await this.fillBoard();
+        await this.processMatches(false, null);
     }
 }

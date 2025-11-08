@@ -2,6 +2,7 @@ import Board from './board.js';
 import InputHandler from './input.js';
 import { playSound } from './audio.js';
 import confetti from 'confetti';
+import { OrientationHandler, ORIENTATIONS } from './orientation.js';
 
 const config = {
     boardSize: 10,
@@ -15,7 +16,9 @@ const config = {
     ],
     pointsPerCandy: 10,
     timerDuration: 15,
-    initialSmashValue: 0
+    initialSmashValue: 0,
+    orientationChangeInterval: 15000, // 15 seconds
+    orientationMatchTime: 10, // 10 seconds to match
 };
 
 class Game {
@@ -34,12 +37,75 @@ class Game {
         this.timerInterval = null;
         this.isTimerPaused = false;
         
-        this.inputHandler = new InputHandler(this.board.boardElement, this.onSwap.bind(this), this.onSmash.bind(this));
+        this.orientationHandler = new OrientationHandler(this.onOrientationMatch.bind(this));
+        this.inputHandler = new InputHandler(this.board.boardElement, this.onSwap.bind(this), this.onSmash.bind(this), this.orientationHandler);
+
+        // Orientation challenge elements
+        this.orientationContainer = document.getElementById('orientation-container');
+        this.orientationIndicator = document.getElementById('orientation-indicator');
+        this.orientationTimerElement = document.getElementById('orientation-timer');
+        this.orientationTimeout = null;
+        this.orientationChallengeInterval = null;
         
         this.updateScore(0);
         this.updateSmashUI();
         this.startTimer();
         this.board.initialize();
+        this.scheduleFirstOrientationChallenge();
+    }
+
+    scheduleFirstOrientationChallenge() {
+        setTimeout(() => {
+            this.startOrientationChallenge();
+            this.orientationChallengeInterval = setInterval(
+                () => this.startOrientationChallenge(),
+                config.orientationChangeInterval
+            );
+        }, 15000); // Start first challenge 15 seconds into the game
+    }
+
+    startOrientationChallenge() {
+        this.pauseTimer();
+        const possibleOrientations = Object.values(ORIENTATIONS).filter(o => o !== this.board.gravityDirection);
+        const nextOrientation = possibleOrientations[Math.floor(Math.random() * possibleOrientations.length)];
+        
+        this.orientationHandler.setTargetOrientation(nextOrientation);
+        
+        this.orientationIndicator.className = '';
+        this.orientationIndicator.classList.add(nextOrientation);
+        this.orientationContainer.classList.remove('hidden');
+
+        let timeLeft = config.orientationMatchTime;
+        this.orientationTimerElement.textContent = timeLeft;
+
+        this.orientationTimeout = setInterval(() => {
+            timeLeft--;
+            this.orientationTimerElement.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                this.failOrientationChallenge();
+            }
+        }, 1000);
+    }
+
+    failOrientationChallenge() {
+        clearInterval(this.orientationTimeout);
+        this.orientationTimeout = null;
+        this.orientationContainer.classList.add('hidden');
+        this.resumeTimer();
+    }
+    
+    onOrientationMatch(newOrientation) {
+        if (!this.orientationTimeout) return; // Challenge not active
+
+        clearInterval(this.orientationTimeout);
+        this.orientationTimeout = null;
+        this.orientationContainer.classList.add('hidden');
+        
+        this.isProcessing = true;
+        this.board.setGravity(newOrientation).then(() => {
+            this.isProcessing = false;
+            this.resumeTimer();
+        });
     }
 
     startTimer() {

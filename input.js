@@ -1,19 +1,30 @@
 import { playBackgroundMusic } from './audio.js';
 
 let musicStarted = false;
+let permissionRequested = false;
 
-function startMusicOnce() {
+async function startSystem(orientationHandler) {
     if (!musicStarted) {
         playBackgroundMusic();
         musicStarted = true;
     }
+    if (!permissionRequested && orientationHandler) {
+        permissionRequested = true;
+        const granted = await orientationHandler.requestPermission();
+        if (granted) {
+            orientationHandler.startListening();
+        } else {
+            console.warn("Device orientation permission not granted. Gyroscope feature will be disabled.");
+        }
+    }
 }
 
 export default class InputHandler {
-    constructor(boardElement, onSwap, onHold) {
+    constructor(boardElement, onSwap, onHold, orientationHandler) {
         this.boardElement = boardElement;
         this.onSwap = onSwap;
         this.onHold = onHold;
+        this.orientationHandler = orientationHandler;
         this.startCandy = null;
         this.isSwapping = false;
         this.startPos = { x: 0, y: 0 };
@@ -29,7 +40,7 @@ export default class InputHandler {
     }
 
     handlePointerDown(e) {
-        startMusicOnce(); // Start music on the first tap/click
+        startSystem(this.orientationHandler); // Start music and request permission
 
         if (this.isSwapping) return;
 

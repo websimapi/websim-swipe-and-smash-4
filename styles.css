@@ -165,3 +165,66 @@ h1 {
     transform: translateX(-50%);
     box-shadow: 0 0 4px white;
 }
+
+#orientation-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 1.5em;
+    text-align: center;
+    border-radius: 20px;
+    text-shadow: 1px 1px 3px black;
+}
+
+#orientation-container.hidden {
+    display: none;
+}
+
+#orientation-indicator {
+    width: 80px;
+    height: 120px;
+    border: 4px solid white;
+    border-radius: 15px;
+    position: relative;
+    margin: 15px 0;
+    transition: width 0.3s, height 0.3s;
+}
+
+/* This small circle represents the "top" of the phone device */
+#orientation-indicator::before {
+    content: '';
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    background-color: white;
+    border-radius: 50%;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: top 0.3s, bottom 0.3s, left 0.3s, right 0.3s, transform 0.3s;
+}
+
+#orientation-indicator.down::before { top: 8px; } /* Default portrait */
+#orientation-indicator.up::before { bottom: 8px; } /* Upside down */
+#orientation-indicator.left::before { top: 50%; left: 8px; transform: translateY(-50%); } /* Landscape left */
+#orientation-indicator.right::before { top: 50%; right: 8px; left: auto; transform: translateY(-50%); } /* Landscape right */
+
+/* Adjust container for landscape indicators */
+#orientation-indicator.left, #orientation-indicator.right {
+    width: 120px;
+    height: 80px;
+}
+
+#orientation-timer {
+    margin-top: 10px;
+    font-size: 1.5em;
+    font-weight: bold;
+}
