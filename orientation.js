@@ -8,8 +8,9 @@ const ORIENTATIONS = {
 };
 
 class OrientationHandler {
-    constructor(onOrientationMatch) {
+    constructor(onOrientationMatch, onOrientationUpdate) {
         this.onOrientationMatch = onOrientationMatch;
+        this.onOrientationUpdate = onOrientationUpdate;
         this.currentOrientation = ORIENTATIONS.DOWN;
         this.targetOrientation = ORIENTATIONS.DOWN;
         this.permissionGranted = false;
@@ -54,6 +55,10 @@ class OrientationHandler {
         // beta: front-back tilt (-180 to 180)
         // gamma: left-right tilt (-90 to 90)
         const { beta, gamma } = event;
+
+        if (this.onOrientationUpdate) {
+            this.onOrientationUpdate(beta, gamma);
+        }
 
         let newOrientation = this.currentOrientation;
 

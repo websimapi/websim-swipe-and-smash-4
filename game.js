@@ -3,6 +3,7 @@ import InputHandler from './input.js';
 import { playSound } from './audio.js';
 import confetti from 'confetti';
 import { OrientationHandler, ORIENTATIONS } from './orientation.js';
+import Physics from './physics.js';
 
 const config = {
     boardSize: 10,
@@ -22,7 +23,9 @@ const config = {
 
 class Game {
     constructor() {
-        this.board = new Board(config.boardSize, config.candyTypes, this.onMatch.bind(this));
+        this.boardElement = document.getElementById('game-board');
+        this.physics = new Physics(this.boardElement);
+        this.board = new Board(config.boardSize, config.candyTypes, this.onMatch.bind(this), this.physics);
         this.score = 0;
         this.scoreElement = document.getElementById('score');
         this.isProcessing = false;
@@ -36,7 +39,7 @@ class Game {
         this.timerInterval = null;
         this.isTimerPaused = false;
         
-        this.orientationHandler = new OrientationHandler(this.onOrientationMatch.bind(this));
+        this.orientationHandler = new OrientationHandler(this.onOrientationMatch.bind(this), this.onOrientationUpdate.bind(this));
         this.inputHandler = new InputHandler(this.board.boardElement, this.onSwap.bind(this), this.onSmash.bind(this), this.orientationHandler);
 
         // Orientation challenge elements
@@ -50,6 +53,20 @@ class Game {
         this.startTimer();
         this.board.initialize();
         this.scheduleFirstOrientationChallenge();
+        this.gameLoop();
+    }
+
+    gameLoop() {
+        // Update visual positions from physics engine
+        for (const body of this.physics.engine.world.bodies) {
+            if (body.domElement) {
+                const { x, y } = body.position;
+                const angle = body.angle;
+                body.domElement.style.transform = `translate(${x - body.domElement.clientWidth / 2}px, ${y - body.domElement.clientHeight / 2}px) rotate(${angle}rad)`;
+            }
+        }
+
+        requestAnimationFrame(this.gameLoop.bind(this));
     }
 
     scheduleFirstOrientationChallenge() {
@@ -93,6 +110,9 @@ class Game {
 
         this.orientationChallengeContainer.classList.add('matched');
 
+        // The main gravity direction is set by the challenge
+        this.physics.setGravity(newOrientation);
+
         this.isProcessing = true;
         this.pauseTimer();
         this.board.setGravity(newOrientation).then(() => {
@@ -104,6 +124,11 @@ class Game {
                 this.orientationChallengeContainer.classList.remove('matched');
             }, 500);
         });
+    }
+
+    onOrientationUpdate(beta, gamma) {
+        // Live update gravity for jiggle effect
+        this.physics.updateGravityFromSensors(beta, gamma);
     }
 
     startTimer() {

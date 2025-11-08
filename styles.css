@@ -111,8 +111,11 @@ h1 {
     background-position: center;
     cursor: pointer;
     position: absolute;
-    transition: top 0.3s ease, left 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
-    will-change: top, left, transform; /* Performance hint for browsers */
+    /* Let transform handle positioning and animation */
+    top: 0;
+    left: 0;
+    will-change: transform; /* Performance hint for browsers */
+    transition: opacity 0.3s ease; /* Keep opacity transition for matching */
 }
 
 .candy.selected {
